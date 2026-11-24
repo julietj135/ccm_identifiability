@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+# MCMC diagnostics adapted from legacy PyMC3 for NumPy chain arrays
+# see https://pysgmcmc.readthedocs.io/en/latest/index.html for more
+
 import itertools
 import matplotlib.pyplot as plt
 import numpy as np

@@ -10,9 +10,9 @@ def load_data(
     adnimerge_path="/Users/julietjiang/Downloads/ADProjectFiles/AIM1/ADNIMERGE.xlsx",
     pet_path="../UCBERKELEY_PET_CLEAN_ODE.xlsx",
     training_path="../Parameters_PET_TRAIN_ICV.xlsx",
-    hyperparams_path="Identifiability_Hyperparams_loosenbnds.xlsx",
-    colormap_path="Identifiability_Colormap_Figure.xlsx",
-    uc_path="UC_hyperparameters.xlsx",
+    hyperparams_path="sheets/Identifiability_Hyperparams_loosenbnds.xlsx",
+    colormap_path="sheets/Identifiability_Colormap_Figure.xlsx",
+    uc_path="sheets/UC_hyperparameters.xlsx",
     subject_params_dir=".",
 ):
     """Read the workbooks once and return original tables, observations and metrics.
