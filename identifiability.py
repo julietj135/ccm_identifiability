@@ -24,7 +24,7 @@ from tqdm import tqdm
 import random as r
 
 # IMPORT DATA
-from data import load_data
+from data import *
 all_data = load_data()
 
 
@@ -488,6 +488,10 @@ from matplotlib.ticker import ScalarFormatter
 import model as m
 m.scale = True
 
+from data import *
+uq_params = load_uq_params()
+all_data["uq_params"] = uq_params 
+
 # parameters have been scaled to (0,1)
 bnds = np.array(((0,1), (0,1), (0,1), 
                   (0,1), (0,1), (0,1), 
@@ -518,7 +522,6 @@ def logpost(x, biomarker, data,
     new_params[param_num] = x
     
     ##### Gaussian prior around optimal values
-    scale = 0.1
     logprior = -0.5 * np.sum((x - center) ** 2) / scale
     
     loglik = log_likelihood_MALA(new_params, biomarker, data, age_data, additional_params, lambda_bio)
@@ -769,10 +772,12 @@ for rid in [4272]:
     # RUN MCMC
     print("total samples, thinning, burnin, switching")
     print(num_samples, thinning, burn_in, switching)
+    num_samples = 12000
+    thinning = 5
+    burn_in = 100
+    # switching = 1000
     p = len(para)
-    S = np.eye(p)
-    scale = 0.5
-    
+    scale = 0.1
     
     if MALA_:
         initial = opt_param_vals[bio][para].copy()
@@ -807,8 +812,8 @@ for rid in [4272]:
         # print("Acceptance rate of last MCMC chain: ", individual_counts/num_samples)
                 
         # FULL MCMC
-        epsilon = 0.001 # single epsilon rather than epsilon for each param
-        S = np.diag((steps / epsilon) ** 2)
+        epsilon = 1.0
+        S = np.diag(epsilons ** 2)
         
         full_MCMC, accepted = MALA(
             num_samples, 0, epsilon, S,
@@ -819,14 +824,17 @@ for rid in [4272]:
         print("Sampled parameter indices:", para)
         print("Joint acceptance rate:", accepted / num_samples)
         
-        MCMC = full_MCMC[None, :, :]  # (1 chain, num_samples, len(para))
-        joint_draws = full_MCMC[burn_in::thinning]
+        # MCMC = full_MCMC[None, :, :]  # (1 chain, num_samples, len(para))
+        # joint_draws = full_MCMC[burn_in::thinning]
+        
+        MCMC_flattened = np.vstack([full_MCMC, full_MCMC])
+        MCMC = MCMC_flattened.reshape((2,num_samples,len(para)))
         
         print("Shape of MCMC stack: ", MCMC.shape)
         
         for i, j in zip(np.arange(len(para)), para):
             ess = effective_n(MCMC[...,i], [all_param_names[bio][j]])
-            print("Effective sample size for param {}: ".format(all_param_names[bio][j]), ess)
+            print("Effective sample size for param {}: ".format(ess))
             
             autocorrelation_int = num_samples/ess[all_param_names[bio][j]]
             

@@ -5,6 +5,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+def load_uq_params(uq_path="sheets/UQ_hyperparameters.xlsx"):
+    if uq_path is None or not Path(uq_path).is_file():
+        return None
+    return pd.read_excel(uq_path, index_col="RID")
 
 def load_data(
     adnimerge_path="/Users/julietjiang/Downloads/ADProjectFiles/AIM1/ADNIMERGE.xlsx",
@@ -28,8 +32,7 @@ def load_data(
     df4 = pd.read_excel(training_path)
     df5 = pd.read_excel(hyperparams_path)
     df_fig = pd.read_excel(colormap_path, header=None)
-    uq_params = (pd.read_excel(uq_path, index_col="RID")
-                 if uq_path is not None and Path(uq_path).is_file() else None)
+    uq_params = load_uq_params(uq_path)
     df0["datetimes"] = pd.to_datetime(df0.EXAMDATE, format="%m/%d/%Y", errors="coerce")
     df["datetimes"] = pd.to_datetime(df.EXAMDATE, format="%m/%d/%y", errors="coerce")
 
