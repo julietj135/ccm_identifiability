@@ -161,7 +161,7 @@ def plot_subject_trajectories(subject, para_A, para_T, para_N):
         ("pt", "apt", plot_para_est_obj_T, (para_T, para_A), "b", "tau"),
         ("nn", "nnt", plot_para_est_obj_N, (para_N, para_AT), "y", "neurodegen"),
     ):
-        t, trajectory = solve(*params, subject[values], subject[ages], 1)
+        t, trajectory = solve(*params, subject[values], subject[ages])
         ax.plot(subject[ages], subject[values], "." + color, label=label)
         ax.plot(t, trajectory, "-" + color)
     ax.set_title(str(subject["PID"]["RID"].iloc[0]))

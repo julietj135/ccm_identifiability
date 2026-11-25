@@ -12,7 +12,7 @@ def load_data(
     training_path="../Parameters_PET_TRAIN_ICV.xlsx",
     hyperparams_path="sheets/Identifiability_Hyperparams_loosenbnds.xlsx",
     colormap_path="sheets/Identifiability_Colormap_Figure.xlsx",
-    uc_path="sheets/UC_hyperparameters.xlsx",
+    uq_path="sheets/UQ_hyperparameters.xlsx",
     subject_params_dir=".",
 ):
     """Read the workbooks once and return original tables, observations and metrics.
@@ -28,8 +28,8 @@ def load_data(
     df4 = pd.read_excel(training_path)
     df5 = pd.read_excel(hyperparams_path)
     df_fig = pd.read_excel(colormap_path, header=None)
-    uc_params = (pd.read_excel(uc_path, index_col="RID")
-                 if uc_path is not None and Path(uc_path).is_file() else None)
+    uq_params = (pd.read_excel(uq_path, index_col="RID")
+                 if uq_path is not None and Path(uq_path).is_file() else None)
     df0["datetimes"] = pd.to_datetime(df0.EXAMDATE, format="%m/%d/%Y", errors="coerce")
     df["datetimes"] = pd.to_datetime(df.EXAMDATE, format="%m/%d/%y", errors="coerce")
 
@@ -104,7 +104,7 @@ def load_data(
 
     return {
         "df0": df0, "df": df, "df4": df4, "df5": df5, "df_fig": df_fig,
-        "uc_params": uc_params, "individual_params": individual_params,
+        "uq_params": uq_params, "individual_params": individual_params,
         "RID": df.RID.unique().tolist(), "RID_train": df4.RID.tolist(),
         "DX": df.DX_closest, "DX_bl": df0.DX_bl, "age": age, "age_time": age_time,
         "hippocampus": df.HIPPOCAMPUS_VOLUME, "ICV": df.ICV, "raw_ratio": raw_ratio,

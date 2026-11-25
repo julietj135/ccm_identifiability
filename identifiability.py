@@ -25,52 +25,51 @@ import random as r
 
 # IMPORT DATA
 from data import load_data
-data = load_data()
+all_data = load_data()
 
 
 # Source tables and parameter workbooks
-df0 = data["df0"]          # ADNIMERGE clinical table
-df = data["df"]            # PET and hippocampal measurements
-df4 = data["df4"]          # Training parameter table
-df5 = data["df5"]          # Identifiability and fitted parameters
-df_fig = data["df_fig"]    # Identifiability colormap
-uc_params = data["uc_params"]
-individual_params = data["individual_params"]
+df0 = all_data["df0"]          # ADNIMERGE clinical table
+df = all_data["df"]            # PET and hippocampal measurements
+df4 = all_data["df4"]          # Training parameter table
+df5 = all_data["df5"]          # Identifiability and fitted parameters
+df_fig = all_data["df_fig"]    # Identifiability colormap
+uq_params = all_data["uq_params"]
 
 # Subject IDs, diagnoses, and baseline information
-RID = data["RID"]
-RID_train = data["RID_train"]
-DX = data["DX"]
-DX_bl = data["DX_bl"]
-age = data["age"]              # Baseline age by RID
-age_time = data["age_time"]    # Earliest clinical exam date by RID
-subjects = data["subjects"]
+RID = all_data["RID"]
+RID_train = all_data["RID_train"]
+DX = all_data["DX"]
+DX_bl = all_data["DX_bl"]
+age = all_data["age"]              # Baseline age by RID
+age_time = all_data["age_time"]    # Earliest clinical exam date by RID
+subjects = all_data["subjects"]
 
 # Measurements and normalized biomarkers across all visits
-hippocampus = data["hippocampus"]
-ICV = data["ICV"]
-raw_ratio = data["raw_ratio"]  # hippocampus / ICV
-ratio = data["ratio"]          # Normalized and inverted ratio, same as N
-N = data["N"]
-ABETA = data["ABETA"]
-PTAU = data["PTAU"]
+hippocampus = all_data["hippocampus"]
+ICV = all_data["ICV"]
+raw_ratio = all_data["raw_ratio"]  # hippocampus / ICV
+ratio = all_data["ratio"]          # Normalized and inverted ratio, same as N
+N = all_data["N"]
+ABETA = all_data["ABETA"]
+PTAU = all_data["PTAU"]
 
 # Quantiles used for normalization
-r_lower, r_upper = data["r_lower"], data["r_upper"]
-AB_lower, AB_upper = data["AB_lower"], data["AB_upper"]
-T_upper = data["T_upper"]
+r_lower, r_upper = all_data["r_lower"], all_data["r_upper"]
+AB_lower, AB_upper = all_data["AB_lower"], all_data["AB_upper"]
+T_upper = all_data["T_upper"]
 
 # Summary matrices: row i corresponds to metric_rids[i]
-metric_rids = data["metric_rids"]
-metric_columns = data["metric_columns"]
-abeta_data = data["abeta_data"]
-tau_data = data["tau_data"]
-neuro_data = data["neuro_data"]
+metric_rids = all_data["metric_rids"]
+metric_columns = all_data["metric_columns"]
+abeta_data = all_data["abeta_data"]
+tau_data = all_data["tau_data"]
+neuro_data = all_data["neuro_data"]
 
 # Each entry is a subject's number of identifiable parameters
-cn_rid = data["cn_rid"]
-mci_rid = data["mci_rid"]
-ad_rid = data["ad_rid"]
+cn_rid = all_data["cn_rid"]
+mci_rid = all_data["mci_rid"]
+ad_rid = all_data["ad_rid"]
 
 #%%
 
@@ -179,11 +178,9 @@ def plot_profile(x_values, y_values, flags, inits, loss_crit, ep1s, ep2s, labels
     axs[0].set_ylabel("Profile Likelihood", fontsize=16)
     
     plt.tight_layout(pad=1.12)
-    plt.savefig(title+".pdf")
+    # plt.savefig(title+".pdf")
     plt.show() 
 
-
-df5 = pd.read_excel('Identifiability_Hyperparams_loosenbnds.xlsx')
 
 bnds = np.array(((0,10), (0,1), (0,.2), 
                   (0,10), (0,1), (0,1), 
@@ -194,7 +191,7 @@ all_param_names = [[r'$K_{A_{\beta}}$',r'$\lambda_{A_{\beta}}$',r'$A_0$'],[r'$K_
 iterations = 30
 
 
-for rid in [4410]:  # change for specific subject
+for rid in [4272]:  # change for specific subject
     print(rid)
 
     steps = np.array([[40,600,80],
@@ -219,37 +216,43 @@ for rid in [4410]:  # change for specific subject
     
     redo = False
     
-    if rid in df5.RID.tolist() and redo == False:
-        hyperparams = np.array(df5[df5['RID']==rid])[0]
-        steps = hyperparams[37:46].reshape((3,3))
-        scan_bnds = hyperparams[19:37].reshape((9,2))
-        identifiable = hyperparams[46:55].reshape((3,3))
-        para_A = hyperparams[7:10]
-        para_T = hyperparams[10:13]
-        para_N = hyperparams[13:16]
-        loss_A, loss_T, loss_N = hyperparams[16:19]
-        abeta_epsilon, tau_tol, neuro_epsilon = hyperparams[1:4]
-        abeta_lambda, tau_lambda, neuro_lambda = hyperparams[4:7]
-        epsilon = hyperparams[55]
-        solve_params = False
-        find_identifiability = True
-        plot_uncertainty = False
-        
-    # find rid_hyperparams file, if exists, then take model parameters for profile likelihood plotting
-    if os.path.exists("{}_hyperparams.xlsx".format(rid)) and rid not in df5.RID.tolist():
-        df6 = pd.read_excel("{}_hyperparams.xlsx".format(rid))
-        hyperparams = np.array(df6[0])
-        para_A = hyperparams[7:10]
-        para_T = hyperparams[10:13]
-        para_N = hyperparams[13:16]
-        loss_A, loss_T, loss_N = hyperparams[16:19]
-        abeta_lambda, tau_lambda, neuro_lambda = hyperparams[4:7]
+    subject = all_data["subjects"][rid]
+    has_fit = "hyperparams" in subject
+    
+    if has_fit and not redo:
+        # Fit from the main identifiability workbook
+        hp = subject["hyperparams"]  # pandas Series
+    
+        para_A = subject["para_A"].copy()
+        para_T = subject["para_T"].copy()
+        para_N = subject["para_N"].copy()
+        identifiable = subject["identifiable"].copy()
+    
+        steps = hp.iloc[37:46].to_numpy(dtype=int).reshape(3, 3)
+        scan_bnds = hp.iloc[19:37].to_numpy(dtype=float).reshape(9, 2)
+        loss_A, loss_T, loss_N = hp.iloc[16:19].to_numpy(dtype=float)
+        abeta_epsilon, tau_tol, neuro_epsilon = hp.iloc[1:4].to_numpy(dtype=float)
+        abeta_lambda, tau_lambda, neuro_lambda = hp.iloc[4:7].to_numpy(dtype=float)
+        epsilon = float(hp.iloc[55])
+    
         solve_params = False
         find_identifiability = True
         plot_uncertainty = False
     
-    subject = subjects[rid]
-
+    elif not has_fit and rid in all_data["individual_params"]:
+        # Fallback fit from the RID-specific workbook, already read by load_data()
+        hp = all_data["individual_params"][rid][0]  # column labeled 0
+    
+        para_A = hp.iloc[7:10].to_numpy(dtype=float, copy=True)
+        para_T = hp.iloc[10:13].to_numpy(dtype=float, copy=True)
+        para_N = hp.iloc[13:16].to_numpy(dtype=float, copy=True)
+        loss_A, loss_T, loss_N = hp.iloc[16:19].to_numpy(dtype=float)
+        abeta_lambda, tau_lambda, neuro_lambda = hp.iloc[4:7].to_numpy(dtype=float)
+    
+        solve_params = False
+        find_identifiability = True
+        plot_uncertainty = False
+    
     # Visit-level metadata
     PID = subject["PID"]
     PID_indexes = subject["PID_indexes"]
@@ -379,7 +382,7 @@ for rid in [4410]:  # change for specific subject
         ax.set_title(rid)
         
     if plot_params:
-        subject = data["subjects"][rid]
+        subject = all_data["subjects"][rid]
         fig, ax = m.plot_subject_trajectories(subject, subject["para_A"], subject["para_T"], subject["para_N"])
     
     def generate_synthetic(ab, aab, pt, apt, nn, nnt, NUM):
@@ -481,7 +484,7 @@ from scipy.linalg import cholesky, solve
 from scipy.stats import multivariate_normal
 from matplotlib.ticker import ScalarFormatter
 
-# choose unscaled model for profile likelihood search
+# choose scaled model for uncertainty quantification
 import model as m
 m.scale = True
 
@@ -507,16 +510,21 @@ def log_likelihood_MALA(x, biomarker, data, age_data, additional_params, lambda_
 def logpost(x, biomarker, data, 
             age_data, additional_params, 
             param_num, optimal_vars, scale, bnds, df5, lambda_bio):
-    # print(x)
+    
+    x = np.asarray(x, dtype=float).reshape(-1)
+    center = optimal_vars[biomarker][param_num]
+
     new_params = optimal_vars[biomarker].copy()
+    new_params[param_num] = x
     
     ##### Gaussian prior around optimal values
     scale = 0.1
-    cov = np.eye(len(x))*scale
-    prob = multivariate_normal.pdf(x, mean=optimal_vars[biomarker][param_num], cov=cov)
-    logprior = np.log(prob)
+    logprior = -0.5 * np.sum((x - center) ** 2) / scale
     
     loglik = log_likelihood_MALA(new_params, biomarker, data, age_data, additional_params, lambda_bio)
+        
+    if not np.isfinite(loglik) or loglik > 0:
+        return -np.inf
     
     return loglik + logprior
 
@@ -555,7 +563,8 @@ def MALA(num_samples, burn_in, epsilon, S,
          ):
     out = np.zeros((num_samples, p))
     params = np.array(initial).reshape((p,1))
-    epsilon = epsilon.reshape((p,1))
+    # epsilon = epsilon.reshape((p,1)) # coord MCMC
+    epsilon = float(epsilon) # full MCMC
     
     A = cholesky(S, lower=True)
     S1 = np.linalg.inv(S)
@@ -567,7 +576,8 @@ def MALA(num_samples, burn_in, epsilon, S,
                 age_data, additional_params, param_num, 
                 optimal_vars, scale, bnds, df5, lambda_bio)
 
-    sigma2 = epsilon**2 / p**(1 / 3)
+    # sigma2 = epsilon**2 / p**(1 / 3) # coord MCMC
+    sigma2 = epsilon**2 # full MCMC
     sigma = np.sqrt(sigma2)
     
     counts = 0
@@ -602,7 +612,8 @@ def MALA(num_samples, burn_in, epsilon, S,
         if rn >= burn_in:
             out[rn - burn_in, :] = params.flatten()
 
-    return out[out != 0], counts
+    # return out[out != 0], counts # coord MCMC
+    return out, counts
 
 
 def MALA_continue(num_samples, counts, epsilon, S,
@@ -653,33 +664,14 @@ def MALA_continue(num_samples, counts, epsilon, S,
     return out[out != 0], counts
 
 np.random.seed(42)
-
-uc_params = pd.read_excel("UC_hyperparameters.xlsx", index_col="RID")
     
-for rid in [4036]: 
+for rid in [4272]: 
     print(rid)
     
-    if rid in df5.RID.tolist():
-        hyperparams = np.array(df5[df5['RID']==rid])[0]
-        para_A = hyperparams[7:10]
-        para_T = hyperparams[10:13]
-        para_N = hyperparams[13:16]
-        
-        # scaling parameters to be between 0 and 1
-        para_A[0] /= 10
-        para_A[2] = (math.log(para_A[2])+35)/33.4
-        para_T[0] /= 10
-        para_N[0] /= 10
-        
-        para_AT = np.concatenate((para_A, para_T))
-        abeta_lambda, tau_lambda, neuro_lambda = hyperparams[4:7]
-        lambdas = [abeta_lambda, tau_lambda, neuro_lambda]
-    else:
-        print("hyperparameters have not been found yet")
-        break
-        
-    
     subject = subjects[rid]
+    
+    # CHANGE ME, which biomarker
+    bio = 1
 
     # Visit-level metadata
     PID = subject["PID"]
@@ -703,11 +695,53 @@ for rid in [4036]:
     identifiable = subject["identifiable"]
     derivatives = subject["derivatives"]
     n_id = subject["n_id"]
-    para_A = subject["para_A"]
-    para_T = subject["para_T"]
-    para_N = subject["para_N"]
-    para_AT = subject["para_AT"]
+    para_A = subject["para_A"].copy()
+    para_T = subject["para_T"].copy()
+    para_N = subject["para_N"].copy()
+    lambdas = list(hyperparams[4:7])
     
+    # scaling parameters to be between 0 and 1
+    para_A[0] /= 10
+    para_T[0] /= 10
+    para_N[0] /= 10
+    para_A[2] = (math.log(para_A[2])+35)/33.4
+    para_AT = np.concatenate((para_A, para_T))
+    
+    # set data, params, names
+    opt_param_vals = np.array([para_A,para_T,para_N])
+    all_param_names = np.array(all_param_names)
+    
+    if bio == 0:
+        data = ab
+        age_data = aab
+        extra = None
+        color = "red"
+        bio_name = "Amyloid beta"
+        param_name = "A"
+    elif bio == 1:
+        data = pt
+        age_data = apt
+        extra = opt_param_vals[0]
+        color = "blue"
+        bio_name = "Phosphorylated Tau"
+        param_name = "T"
+    else:
+        data = nn
+        age_data = nnt
+        extra = np.concatenate([opt_param_vals[0],opt_param_vals[1]])
+        color = "orange"
+        bio_name = "Neurodegeneration"
+        param_name = "N"
+        
+    row = uq_params.loc[rid]
+
+    sampling_cols = [f"{param_name}_{key}" for key in ("num_samples", "thinning", "burn_in", "switching")]
+    num_samples, thinning, burn_in, switching = row[sampling_cols].to_numpy(dtype=int)
+    
+    epsilon_cols = [f"epsilon_{param_name}{i}" for i in range(3)]
+    bio_epsilon = row[epsilon_cols].to_numpy(dtype=float)
+    para = np.flatnonzero(bio_epsilon)
+    epsilons = bio_epsilon[para]
         
     def plot():
         fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(5,5))
@@ -730,46 +764,9 @@ for rid in [4036]:
         
     ##############################
     
-    # hyperparams
-    bio, para = 2, np.array([1,2])
     MALA_ = True
     
-    # set data, params, names
-    opt_param_vals = np.array([para_A,para_T,para_N])
-    all_param_names = np.array(all_param_names)
-    if bio == 0:
-        data = ab
-        age_data = aab
-        extra = None
-        color = "red"
-        bio_name = "Amyloid beta"
-        param_name = "A"
-    elif bio == 1:
-        data = pt
-        age_data = apt
-        extra = opt_param_vals[0]
-        color = "blue"
-        bio_name = "Phosphorylated Tau"
-        param_name = "T"
-    else:
-        data = nn
-        age_data = nnt
-        extra = np.concatenate([opt_param_vals[0],opt_param_vals[1]])
-        color = "orange"
-        bio_name = "Neurodegeneration"
-        param_name = "N"
-    
-    
     # RUN MCMC
-    row = uc_params.loc[rid]
-
-    sampling_cols = [f"{param_name}_{key}" for key in ("num_samples", "thinning", "burn_in", "switching")]
-    num_samples, thinning, burn_in, switching = row[sampling_cols].to_numpy(dtype=int)
-    
-    epsilon_cols = [f"epsilon_{param_name}{i}" for i in range(3)]
-    bio_epsilon = row[epsilon_cols].to_numpy(dtype=float)
-    epsilon = bio_epsilon[para]
-
     print("total samples, thinning, burnin, switching")
     print(num_samples, thinning, burn_in, switching)
     p = len(para)
@@ -778,37 +775,52 @@ for rid in [4036]:
     
     
     if MALA_:
-        initial = opt_param_vals[bio][para]
+        initial = opt_param_vals[bio][para].copy()
         
         print('Starting MCMC on {}'.format(all_param_names[bio][para]))
-        print("epsilon: ", epsilon, "initial: ", initial)
+        print("epsilon: ", epsilons, "initial: ", initial)
         print("bounds: ", bnds[bio*3+para])
         print("DATA: ", data, age_data)
         
-        current_iter = np.zeros(len(para)).astype(int)
-        full_MCMC = np.zeros((num_samples,len(para)))
-        temp_MCMC = np.array([opt_param_vals[bio][para]]*switching)
-        individual_counts = np.zeros(len(para)).astype(int)
-        temp_opt_param_vals = opt_param_vals.copy()
-        while (current_iter < np.ones(len(para)) * num_samples).all():
-            for idx, coord in enumerate(para):
-                print(coord, current_iter)
-                initial = temp_MCMC[-1,idx]
-                p = 1
-                S = np.eye(p)
-                epsilon = bio_epsilon[coord]
-                coord_MCMC, counts = MALA(switching, 0, epsilon, S,
-                          bio, data, bnds[bio*3+coord].reshape(1,2), [coord], 
-                          age_data, extra, opt_param_vals, scale, initial, p, df5, lambdas[bio]
-                          )
-                individual_counts[idx] += counts
-                current_iter[idx] += switching
-                full_MCMC[current_iter[idx]-switching:current_iter[idx], idx] = coord_MCMC
-                temp_MCMC[:,idx] = coord_MCMC
-                temp_opt_param_vals[bio][coord] = coord_MCMC[-1]
+        # COORD MCMC
+        # current_iter = np.zeros(len(para)).astype(int)
+        # full_MCMC = np.zeros((num_samples,len(para)))
+        # temp_MCMC = np.array([opt_param_vals[bio][para]]*switching)
+        # individual_counts = np.zeros(len(para)).astype(int)
+        # temp_opt_param_vals = opt_param_vals.copy()
+        # while (current_iter < np.ones(len(para)) * num_samples).all():
+        #     for idx, coord in enumerate(para):
+        #         print(coord, current_iter)
+        #         initial = temp_MCMC[-1,idx]
+        #         p = 1
+        #         S = np.eye(p)
+        #         epsilon = bio_epsilon[coord]
+        #         coord_MCMC, counts = MALA(switching, 0, epsilon, S,
+        #                   bio, data, bnds[bio*3+coord].reshape(1,2), [coord], 
+        #                   age_data, extra, opt_param_vals, scale, initial, p, df5, lambdas[bio]
+        #                   )
+        #         individual_counts[idx] += counts
+        #         current_iter[idx] += switching
+        #         full_MCMC[current_iter[idx]-switching:current_iter[idx], idx] = coord_MCMC
+        #         temp_MCMC[:,idx] = coord_MCMC
+        #         temp_opt_param_vals[bio][coord] = coord_MCMC[-1]
+        # print("Acceptance rate of last MCMC chain: ", individual_counts/num_samples)
+                
+        # FULL MCMC
+        epsilon = 0.001 # single epsilon rather than epsilon for each param
+        S = np.diag((steps / epsilon) ** 2)
         
-        MCMC_flattened = np.vstack([full_MCMC, full_MCMC])
-        MCMC = MCMC_flattened.reshape((2,num_samples,len(para)))
+        full_MCMC, accepted = MALA(
+            num_samples, 0, epsilon, S,
+            bio, data, bnds[3 * bio + para], para,
+            age_data, extra, opt_param_vals, scale, initial, p, df5, lambdas[bio],
+        )
+        
+        print("Sampled parameter indices:", para)
+        print("Joint acceptance rate:", accepted / num_samples)
+        
+        MCMC = full_MCMC[None, :, :]  # (1 chain, num_samples, len(para))
+        joint_draws = full_MCMC[burn_in::thinning]
         
         print("Shape of MCMC stack: ", MCMC.shape)
         
@@ -820,7 +832,6 @@ for rid in [4036]:
             
             print("Integrated autocorrelation time: ", autocorrelation_int)
         
-        print("Acceptance rate of last MCMC chain: ", individual_counts/num_samples)
         
     for i, j in zip(np.arange(len(para)), para):
         plt.figure(figsize=(4,4))
@@ -852,7 +863,7 @@ for rid in [4036]:
         ax.yaxis.get_offset_text().set_fontsize(16)
         plt.tight_layout()
         
-        plt.savefig("posteriors/{}_{}_{}.pdf".format(rid,bio_name[0],j))
+        # plt.savefig("posteriors/{}_{}_{}.pdf".format(rid,bio_name[0],j))
         plt.show()
      
         # plot trace in the second figure
@@ -876,11 +887,11 @@ for rid in [4036]:
             temp = opt_param_vals[bio].copy()
             temp[j] = x
             if bio == 0:
-                t, traj = m.plot_para_est_obj_A(temp, ab, aab, lambdas[bio])
+                t, traj = m.plot_para_est_obj_A(temp, ab, aab)
             elif bio == 1:
-                t, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt, lambdas[bio])
+                t, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt)
             else:
-                t, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt, lambdas[bio])
+                t, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt)
             solutions.append(traj)
             
         # compute mean and confidence intervals
@@ -888,14 +899,14 @@ for rid in [4036]:
         mean_sol = np.mean(solutions, axis=0)
         std_sol = np.std(solutions, axis=0)
         
-        plt.figure(figsize=(4,4))
-        plt.plot(t, mean_sol, label="mean trajectory", color="k")
-        plt.fill_between(t, np.min(solutions,axis=0), np.max(solutions,axis=0), color=color, alpha=0.3, label="95% Confidence Interval")
-        plt.scatter(age_data, data, color=color, marker='x', label="biomarker data")
-        plt.xlabel("age")
-        plt.ylabel(bio_name)
-        plt.legend()
-        plt.show()
+        # plt.figure(figsize=(4,4))
+        # plt.plot(t, mean_sol, label="mean trajectory", color="k")
+        # plt.fill_between(t, np.min(solutions,axis=0), np.max(solutions,axis=0), color=color, alpha=0.3, label="95% Confidence Interval")
+        # plt.scatter(age_data, data, color=color, marker='x', label="biomarker data")
+        # plt.xlabel("age")
+        # plt.ylabel(bio_name)
+        # plt.legend()
+        # plt.show()
 
     
     # MC propagation of uncertainty, JOINT
@@ -913,11 +924,11 @@ for rid in [4036]:
         for i, j in zip(np.arange(len(x)), para):
             temp[j] = x[i]
         if bio == 0:
-            t, traj = m.plot_para_est_obj_A(temp, ab, aab, lambdas[bio])
+            t, traj = m.plot_para_est_obj_A(temp, ab, aab)
         elif bio == 1:
-            t, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt, lambdas[bio])
+            t, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt)
         else:
-            t, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt, lambdas[bio])
+            t, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt)
         solutions.append(traj)
     
     # compute mean and confidence intervals
@@ -949,6 +960,61 @@ for rid in [4036]:
     # calculate average confidence interval across data points
     intervals = np.max(solutions,axis=0)[np.floor(age_data).astype(int)] - np.min(solutions,axis=0)[np.floor(age_data).astype(int)] 
     print("AVERAGE CI ACROSS DATA PTS: ", np.mean(intervals))
+    
+    ###################################
+    
+    # UQ with perturbed non-identifiable params 
+    # Sensitivity of the mean interval width to each fixed parameter
+    n_trials = 10
+    lower_perc, upper_perc = 0.5, 1.5
+    fitted = opt_param_vals[bio].copy()
+    sweep_values = {
+        0: np.linspace(lower_perc * fitted[0], upper_perc * fitted[0], n_trials),
+        # 1: np.linspace(lower_perc * fitted[1], upper_perc * fitted[1], n_trials),
+        2: np.linspace(lower_perc * fitted[2], upper_perc * fitted[2], n_trials),
+        # 2: np.linspace(0, 0.2, n_trials),
+    }
+    # sweep_values = {
+    #     0: np.linspace(0, 1, n_trials),
+    #     1: np.linspace(0, 1, n_trials),
+    #     2: np.linspace(0, 1, n_trials),
+    #     # 2: np.linspace(0, 0.2, n_trials),
+    # }
+    visit_idx = np.floor(age_data).astype(int)
+    draws = np.unique(sampled_xs[:, 0])
+    mean_widths = {}
+    fig, axes = plt.subplots(1, 2, figsize=(6, 3), sharey=True)
+    # fig, axes = plt.subplots(1, 1, figsize=(3, 3), sharey=True)
+    # fig, axes = plt.subplots(1, 3, figsize=(9, 3), sharey=True)
+
+    for ax, (j, values) in zip(axes, sweep_values.items()):
+        mean_widths[j] = np.empty(len(values))
+        for trial, value in enumerate(values):
+            temp = fitted.copy()
+            temp[j] = value
+            at_visits = []
+            for draw in draws:
+                temp[1] = draw
+                if bio == 0:
+                    _, traj = m.plot_para_est_obj_A(temp, ab, aab)
+                elif bio == 1:
+                    _, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt)
+                else:
+                    _, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt)
+                # at_visits.append(traj[visit_idx]) # at data points
+                at_visits.append(traj[-1]) # at constraint only
+            width_at_each_visit = np.max(at_visits, axis=0) - np.min(at_visits, axis=0)
+            mean_widths[j][trial] = width_at_each_visit.mean()
+
+        ax.plot(values, mean_widths[j], ".-", color=color)
+        ax.axvline(fitted[j], color="k", linestyle="--", label="Fitted value")
+        ax.set_xlabel(all_param_names[bio][j] + (" (scaled)" if j == 0 or bio == 0 else ""))
+
+    axes[0].set_ylabel("Mean interval width at observed ages")
+    fig.suptitle(f"RID {rid} — {bio_name}")
+    fig.tight_layout()
+    plt.show()
+    
     
 
 #%%
