@@ -22,6 +22,7 @@ from scipy.interpolate import interp1d
 import math
 from tqdm import tqdm
 import random as r
+import arviz as az
 
 # IMPORT DATA
 from data import *
@@ -772,10 +773,9 @@ for rid in [4272]:
     # RUN MCMC
     print("total samples, thinning, burnin, switching")
     print(num_samples, thinning, burn_in, switching)
-    num_samples = 12000
+    num_samples = 10000
     thinning = 5
-    burn_in = 100
-    # switching = 1000
+    burn_in = 1000
     p = len(para)
     scale = 0.1
     
@@ -787,33 +787,13 @@ for rid in [4272]:
         print("bounds: ", bnds[bio*3+para])
         print("DATA: ", data, age_data)
         
-        # COORD MCMC
-        # current_iter = np.zeros(len(para)).astype(int)
-        # full_MCMC = np.zeros((num_samples,len(para)))
-        # temp_MCMC = np.array([opt_param_vals[bio][para]]*switching)
-        # individual_counts = np.zeros(len(para)).astype(int)
-        # temp_opt_param_vals = opt_param_vals.copy()
-        # while (current_iter < np.ones(len(para)) * num_samples).all():
-        #     for idx, coord in enumerate(para):
-        #         print(coord, current_iter)
-        #         initial = temp_MCMC[-1,idx]
-        #         p = 1
-        #         S = np.eye(p)
-        #         epsilon = bio_epsilon[coord]
-        #         coord_MCMC, counts = MALA(switching, 0, epsilon, S,
-        #                   bio, data, bnds[bio*3+coord].reshape(1,2), [coord], 
-        #                   age_data, extra, opt_param_vals, scale, initial, p, df5, lambdas[bio]
-        #                   )
-        #         individual_counts[idx] += counts
-        #         current_iter[idx] += switching
-        #         full_MCMC[current_iter[idx]-switching:current_iter[idx], idx] = coord_MCMC
-        #         temp_MCMC[:,idx] = coord_MCMC
-        #         temp_opt_param_vals[bio][coord] = coord_MCMC[-1]
-        # print("Acceptance rate of last MCMC chain: ", individual_counts/num_samples)
-                
+        
         # FULL MCMC
         epsilon = 1.0
         S = np.diag(epsilons ** 2)
+        
+        S = np.array([[0.01912414, 0.01983574],
+               [0.01983574, 0.02086928]])
         
         full_MCMC, accepted = MALA(
             num_samples, 0, epsilon, S,
@@ -824,34 +804,34 @@ for rid in [4272]:
         print("Sampled parameter indices:", para)
         print("Joint acceptance rate:", accepted / num_samples)
         
-        # MCMC = full_MCMC[None, :, :]  # (1 chain, num_samples, len(para))
-        # joint_draws = full_MCMC[burn_in::thinning]
-        
-        MCMC_flattened = np.vstack([full_MCMC, full_MCMC])
-        MCMC = MCMC_flattened.reshape((2,num_samples,len(para)))
         
         print("Shape of MCMC stack: ", MCMC.shape)
         
-        for i, j in zip(np.arange(len(para)), para):
-            ess = effective_n(MCMC[...,i], [all_param_names[bio][j]])
-            print("Effective sample size for param {}: ".format(ess))
-            
-            autocorrelation_int = num_samples/ess[all_param_names[bio][j]]
-            
-            print("Integrated autocorrelation time: ", autocorrelation_int)
+        for i, j in enumerate(para):
+            name = all_param_names[bio][j]
+            trace = full_MCMC[burn_in:, i]
+            ess = float(az.ess(trace[None, :], method="mean"))
+            print(f"{name}: ESS = {ess:.1f}, autocorrelation time = {trace.size / ess:.1f}")
+        
+        print("Acceptance rate:", accepted / num_samples)
         
         
     for i, j in zip(np.arange(len(para)), para):
-        plt.figure(figsize=(4,4))
+        trace = full_MCMC[burn_in::thinning, i]
+
+        plt.figure(figsize=(4, 4))
         if bio == 0 and j == 2:
-            plt.hist(np.exp(MCMC[0,...,i][burn_in::thinning]*33.4-35), bins=15, density=True, alpha=0.75)
-            plt.axvline(x=math.exp(opt_param_vals[bio][j]*33.4-35), color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
+            plt.hist(np.exp(trace * 33.4 - 35), bins=15, density=True, alpha=0.75)
+            plt.axvline(x=math.exp(opt_param_vals[bio][j] * 33.4 - 35),
+                        color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
         elif j == 0:
-            plt.hist(MCMC[0,...,i][burn_in::thinning]*10, bins=15, density=True, alpha=0.75)
-            plt.axvline(x=opt_param_vals[bio][j]*10, color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
+            plt.hist(trace * 10, bins=15, density=True, alpha=0.75)
+            plt.axvline(x=opt_param_vals[bio][j] * 10,
+                        color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
         else:
-            plt.hist(MCMC[0,...,i][burn_in::thinning], bins=15, density=True, alpha=0.75)
-            plt.axvline(x=opt_param_vals[bio][j], color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
+            plt.hist(trace, bins=15, density=True, alpha=0.75)
+            plt.axvline(x=opt_param_vals[bio][j],
+                        color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
         
         # plt.hist(MCMC[0,...,i][::thinning], bins=15, density=True, alpha=0.75)
         # plt.axvline(x=opt_param_vals[bio][j], color='k', linestyle="--", linewidth=2, label='Optimized Parameter')
@@ -876,30 +856,40 @@ for rid in [4272]:
      
         # plot trace in the second figure
         plt.figure(figsize=(4,4))
-        plt.plot(MCMC[0,...,i][burn_in::thinning],'k')
+        plt.plot(full_MCMC[...,i][burn_in::thinning],'k')
         plt.xlabel('{}'.format(all_param_names[bio][j]))
         plt.ylabel("trace")
         plt.show()
-    
-        autocorrplot(MCMC[...,i][:,burn_in::thinning], max_lag=100, varnames=[all_param_names[bio][j]])
-    
-        # MC propagation of uncertainty
-        sampled_xs = np.random.choice(MCMC[0,...,i][burn_in::thinning], size=1000, replace=True)
-        lower_bound = np.percentile(sampled_xs, 2.5)
-        upper_bound = np.percentile(sampled_xs, 97.5)
         
-        sampled_xs = sampled_xs[(sampled_xs >= lower_bound) & (sampled_xs <= upper_bound)]
+        raw_trace = full_MCMC[burn_in:, i]
+        trace = raw_trace[::thinning]  # histogram and trace plot
+        
+        # In the trace figure
+        plt.plot(trace, 'k')
+        plt.xlabel("Retained draw")
+        plt.ylabel(all_param_names[bio][j])
+        
+        # In the autocorrelation figure
+        autocorrplot(raw_trace[None, :], max_lag=100, varnames=[all_param_names[bio][j]])
+        
+        # MC propagation of uncertainty
+        sampled_xs = full_MCMC[burn_in::thinning]  # (draws, parameters)
+
+        lower_bound, upper_bound = np.percentile(sampled_xs, [2.5, 97.5], axis=0)
+        keep = np.all((sampled_xs >= lower_bound) & (sampled_xs <= upper_bound), axis=1)
+        sampled_xs = sampled_xs[keep]
     
         solutions = []
         for x in sampled_xs:
             temp = opt_param_vals[bio].copy()
-            temp[j] = x
+            for i,j in enumerate(para):
+                temp[j] = x[i]
             if bio == 0:
-                t, traj = m.plot_para_est_obj_A(temp, ab, aab)
+                t, traj = plot_para_est_obj_A(temp, ab, aab, lambdas[bio])
             elif bio == 1:
-                t, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt)
+                t, traj = plot_para_est_obj_T(temp, para_A, pt, apt, lambdas[bio])
             else:
-                t, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt)
+                t, traj = plot_para_est_obj_N(temp, para_AT, nn, nnt, lambdas[bio])
             solutions.append(traj)
             
         # compute mean and confidence intervals
@@ -918,31 +908,23 @@ for rid in [4272]:
 
     
     # MC propagation of uncertainty, JOINT
-    total = MCMC[0][burn_in::thinning].shape[0]
-    row_i = np.random.choice(total, size=min([1000,total]), replace=True)
-    sampled_xs = MCMC[0][burn_in::thinning][row_i]
-    lower_bound = np.percentile(sampled_xs, 2.5, axis=0)
-    upper_bound = np.percentile(sampled_xs, 97.5, axis=0)
-    
-    sampled_xs = sampled_xs[np.all(sampled_xs >= lower_bound,axis=1) & np.all(sampled_xs <= upper_bound,axis=1)]
-
+    joint_draws = full_MCMC[burn_in::thinning]
     solutions = []
-    for x in sampled_xs:
+    
+    for draw in joint_draws:
         temp = opt_param_vals[bio].copy()
-        for i, j in zip(np.arange(len(x)), para):
-            temp[j] = x[i]
+        temp[para] = draw
         if bio == 0:
-            t, traj = m.plot_para_est_obj_A(temp, ab, aab)
+            t, traj = plot_para_est_obj_A(temp, ab, aab, lambdas[bio])
         elif bio == 1:
-            t, traj = m.plot_para_est_obj_T(temp, para_A, pt, apt)
+            t, traj = plot_para_est_obj_T(temp, para_A, pt, apt, lambdas[bio])
         else:
-            t, traj = m.plot_para_est_obj_N(temp, para_AT, nn, nnt)
+            t, traj = plot_para_est_obj_N(temp, para_AT, nn, nnt, lambdas[bio])
         solutions.append(traj)
     
-    # compute mean and confidence intervals
-    solutions = np.array(solutions)
-    mean_sol = np.mean(solutions, axis=0)
-    std_sol = np.std(solutions, axis=0)
+    solutions = np.stack(solutions)  # (draws, ages)
+    mean_sol = solutions.mean(axis=0)
+    lower, upper = np.percentile(solutions, [2.5, 97.5], axis=0)
     
     plt.figure(figsize=(4,4))
     plt.plot(t, mean_sol, label="Mean Trajectory", color="k")
@@ -1024,6 +1006,7 @@ for rid in [4272]:
     plt.show()
     
     
+
 
 #%%
 

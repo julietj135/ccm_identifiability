@@ -118,7 +118,7 @@ def effective_n(mtrace, varnames):
 
 
 def autocorrplot(trace, varnames, max_lag=50, burn=0, plot_transformed=False,
-                 symmetric_plot=False, ax=None, figsize=None):
+                 symmetric_plot=False, ax=None, figsize=None, pdf_path=None):
     """Bar plot of the autocorrelation function for a trace.
 
     Parameters
@@ -147,54 +147,58 @@ def autocorrplot(trace, varnames, max_lag=50, burn=0, plot_transformed=False,
     -------
     ax : matplotlib axes
     """
-    # def _handle_array_varnames(varname):
-    #     if trace[0].__class__ is np.ndarray:
-    #         k = trace.shape[1]
-    #         for i in range(k):
-    #             yield varname + '_{0}'.format(i)
-    #     else:
-    #         yield varname
+    values = np.asarray(trace, dtype=float)
+    if values.ndim == 1:
+        values = values[None, :, None]
+    elif values.ndim == 2:
+        values = values[:, :, None]
+    if values.ndim != 3:
+        raise ValueError("Expected (draws,), (chains, draws), or (chains, draws, variables).")
 
-    # varnames = list(itertools.chain.from_iterable(map(_handle_array_varnames, varnames)))
+    chains, draws, variables = values.shape
+    names = [varnames] if isinstance(varnames, str) else list(varnames)
+    if len(names) != variables:
+        raise ValueError("Provide one name for each variable.")
+    if not 0 <= burn <= draws - 2 or max_lag < 0:
+        raise ValueError("Keep at least two draws and use a nonnegative max_lag.")
 
-    nchains = trace.shape[0]
+    max_lag = min(max_lag, draws - burn - 1)
+    lags = np.arange(max_lag + 1)
+    if ax is None:
+        fig, axes = plt.subplots(variables, chains, squeeze=False,
+                                 figsize=figsize or (3 * chains, 3 * variables))
+    else:
+        axes = np.asarray(ax, dtype=object).reshape(variables, chains)
+        fig = axes[0, 0].figure
 
-    if figsize is None:
-        figsize = (12, len(varnames) * 2)
+    for i, name in enumerate(names):
+        for j in range(chains):
+            panel = axes[i, j]
+            series = values[j, burn:, i]
+            if not np.isfinite(series).all():
+                raise ValueError(f"Nonfinite draws for {name}, chain {j + 1}.")
+            centered = series - series.mean()
+            if np.ptp(series) == 0:
+                panel.text(0.5, 0.5, "Constant trace\nACF undefined",
+                           ha="center", va="center", transform=panel.transAxes)
+            else:
+                energy = centered @ centered
+                acf = np.array([centered[:len(series) - k] @ centered[k:]
+                                for k in lags]) / energy
+                x, y = lags, acf
+                if symmetric_plot:
+                    x = np.r_[-lags[:0:-1], lags]
+                    y = np.r_[acf[:0:-1], acf]
+                panel.bar(x, y, width=1, color="#1f77b4", linewidth=0)
+            panel.set_xlim(-max_lag if symmetric_plot else 0, max_lag or 1)
+            panel.set_xlabel("Lag")
+            panel.set_ylabel("Autocorrelation")
+            panel.set_title(name if chains == 1 else f"{name} (chain {j + 1})")
 
-    _, ax = plt.subplots(len(varnames),nchains)
-
-    max_lag = min(len(trace[0]) - 1, max_lag)
-    print("max_lag: ", max_lag)
-
-    for i, v in enumerate(varnames):
-        for j in range(nchains):
-            try:
-                d = np.squeeze(trace[j])
-            except KeyError:
-                k = int(v.split('_')[-1])
-                v_use = '_'.join(v.split('_')[:-1])
-                d = np.squeeze(trace[j])
-            
-            ax[j].acorr(d, detrend=plt.mlab.detrend_mean, maxlags=max_lag)
-
-            if j == 0:
-                ax[j].set_ylabel("correlation")
-
-            if i == len(varnames) - 1:
-                ax[j].set_xlabel("lag")
-
-            ax[j].set_title(v)
-
-            if not symmetric_plot:
-                ax[j].set_xlim(0, max_lag)
-
-            if nchains > 1:
-                ax[j].set_title("{} chain {}".format(v, j + 1))
-    
-    # plt.savefig("{}_{}.png".format(varnames[0],trace.shape[-1]))
-
-    return ax
+    fig.tight_layout()
+    if pdf_path is not None:
+        fig.savefig(pdf_path, format="pdf")
+    return axes
 
 def get_axis(ax, default_rows, default_columns, **default_kwargs):
     """Verifies the provided axis is of the correct shape, and creates one if needed.
